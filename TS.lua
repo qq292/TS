@@ -7,8 +7,8 @@ Setting = {
 local Factor ={
     x=-1,
     y=-1,
+    position={},
     factor=function (self,base, feature)
-        
         self:__isAnd(feature)--找色
         self:__isTap(feature)--是否点击
         self:__isAgain(feature)--全部找到再执行下一个
@@ -23,7 +23,7 @@ local Factor ={
         base:log(feature, self.x, self.y)
         return self
     end,
-
+    
 
     --全部找到再执行下一个
     __isAgain=function (self,feature)
@@ -45,7 +45,7 @@ local Factor ={
     --找到颜色回调
     __findColor_call=function (self,feature)
         if self.x~=-1 and feature.____Set_findColor_call ~= nil then
-            feature.____Set_findColor_call(feature, self.x, self.y)
+            feature.____Set_findColor_call(feature, self.x, self.y,self.position)
         end
     end
     ,
@@ -58,10 +58,14 @@ local Factor ={
     
     --找色
     __isAnd=function (self,feature)
-        
-        if feature.____Set_isAnd then
+        if feature.____Set_isAnd == Feature.ALL then
+            self.position = feature:findColor_all()
+            if #self.position ~=0 then
+                self.x, self.y =  self.position[1].x,self.position[1].y
+            end
+        elseif feature.____Set_isAnd == Feature.AND then
             self.x, self.y = feature:findColor_and()
-        else
+        elseif feature.____Set_isAnd == Feature.OR then
             self.x, self.y = feature:findColor_or()
         end
 
@@ -86,16 +90,29 @@ Base = setmetatable({
         
     end,
     __run = function(self,procedure_list)
-        
+       
         for _, feature in ipairs(procedure_list) do
             if self.flag then
                 return
             end
-            local factor= Factor:factor(self, feature)
-            local sub_feature = feature.____Set_sub_feature
-            if factor.x ~= -1 and #sub_feature ~= 0 then
-                self:__run(sub_feature)
+            if type(feature) == "function" then
+                feature()
+            else
+                local factor= Factor:factor(self, feature)
+                local sub_feature = feature.____Set_sub_feature
+                if factor.x ~= -1 then
+                    
+                    if #sub_feature ~= 0  then
+                        self:__run(sub_feature)
+                    end
+                    if feature.____Set_findBreak then
+                        break
+                    end
+                    
+                    
+                end
             end
+            
         end
         self:__run(self.procedure_list)
     end,
@@ -126,8 +143,14 @@ ColorBase = {
     tap = function(self)
         return tap
     end,
+    randomTap = function(self)
+        return randomTap
+    end,
     sleep=function ()
         return mSleep
+    end,
+    findMultiColorInRegionFuzzyExt=function ()
+        return findMultiColorInRegionFuzzyExt
     end
     
 
@@ -135,21 +158,52 @@ ColorBase = {
 
 
 Color = setmetatable({
-    
-    __findColor = function(self, t)
+    ____Set_tapLag=500,
+    ____Set_tapRandomRange=5,
+    __findColor = function(self, t,isAll)
+        if #t==0 then
+            if isAll then
+                return {}
+            else
+                return -1,-1
+            end
+        end
+        isAll = isAll or false
         t[8] = t[8] or {orient = 2}
-        return self:findMultiColorInRegionFuzzy()(t[1], t[2], t[3], t[4], t[5], t[6], t[7],t[8])
+        if isAll then
+            return self:findMultiColorInRegionFuzzyExt()(t[1], t[2], t[3], t[4], t[5], t[6], t[7])
+        else
+            return self:findMultiColorInRegionFuzzy()(t[1], t[2], t[3], t[4], t[5], t[6], t[7],t[8])
+        end
+        
     end,
  
-    click = function(self, x, y,t, ms,pic)
+    click = function(self, x, y,t,r,pic)
         t = t or self.____Set_tapLag
-        ms = ms or 50
+        r = r or self.____Set_tapRandomRange
         if pic~=nil then
-            self:tap()(x, y,ms,pic)
+            self:randomTap()(x, y,r,pic)
         else
-            self:tap()(x, y,ms)
+            self:randomTap()(x, y,r)
         end
         self:sleep()(t)
+    end,
+    findColor_all=function (self)
+        local color_list = self.____color_list
+        local position={}
+        if #color_list ~= 0 then
+            for _, color in pairs(color_list) do
+
+                local ipos = self:__findColor(color,true)
+                if #ipos ~= 0 then
+                    for _, pos in pairs(ipos) do
+                        table.insert(position,pos)
+                    end
+                    
+                end
+            end
+        end
+        return position
     end,
     findColor_and = function(self)
         local color_list = self.____color_list
@@ -201,17 +255,36 @@ Color = setmetatable({
 
 -- 脚本控制类
 Feature = setmetatable({
+    _TYPE_="Feature",
+    ALL=0,
+    AND=1,
+    OR=3,
     ____Set_tapLag = Setting.tapLag,
     ____Set_isTap = false,
     ____Set_findColor_call = nil,
     ____Set_unFindColor_call = nil,
     ____Set_sub_feature = {},
-    ____Set_isAnd = true,
+    ____Set_isAnd = 1,
     ____Set_tag = nil,
-    ____Set_shifting_x=0,--x的偏移量
+    ____Set_shifting_x=0,
     ____Set_shifting_y=0,
     ____Set_isAgain = false,
+    ____Set_tapRandomRange =5,
+    ____Set_findBreak =false,
 
+
+    --找到后跳出流程
+    set_findBreak=function (self,findBreak)
+        self.____Set_findBreak = findBreak
+        return self
+    end,
+
+
+    --点击随机范围
+    set_tapRandomRange=function (self,randomRange)
+        self.____Set_tapRandomRange = randomRange
+        return self
+    end,
 
     --全部点完再执行下一个
     set_isAgain=function (self,isAgain)
@@ -278,148 +351,15 @@ Feature = setmetatable({
 
 })
 
-
-----------------------------上面是框架部分--------------------
-----------------------------下面是示例部分--------------------
-
-
-
-local 极品三国 = setmetatable({
-    procedure = function(self)
-        return
-        {
-            Feature(
-                {0x975956, "12|0|0x95625d,23|0|0x85625f,36|1|0x905a54", 90, 12, 1044, 69, 1091}
-                )
-                :set_tag("主界面")--附加信息
-                :set_tapLag(300)--点击后延时
-                :set_isTap(false)--是否点击
-                :set_isAnd(true)
-                :set_findColor_call(
-                    function(feature, x, y)
-                        --找到颜色回调
-                    end
-                )
-                :set_unFindColor_call(
-                    function (feature)
-                    --未找到颜色回调
-                    end
-                )
-                :set_sub_feature(--界面内的操作
-                    Feature(
-                        {0x48342d, "73|0|0x48342d,41|8|0xf3ebd7", 90, 257, 497, 398, 518}
-                    )
-                    :set_tag("打理资产气泡框")
-                    :set_tapLag(300)
-                    :set_shifting_y(20)
-                    :set_isTap(true)
-                    :set_findColor_call(
-                        function(feature, x, y)
-                           --找到颜色回调
-                        end
-                    )
-                    :set_unFindColor_call(
-                    function (feature)
-                    --未找到颜色回调
-                    end
-                )
-            ),
-            Feature(
-                {0xfeeb60, "-2|-55|0xda9c49,-165|-56|0xca8a34,-74|62|0xd6b741,-94|202|0x62554b,-80|-135|0x645a51", 90, 313, 709, 355, 749}
-                
-                )
-                :set_tag("经营资产界面")
-                :set_sub_feature(
-                Feature(
-                    {0xa4531e, "19|3|0xb35a1f,98|-11|0xe39539,63|-15|0xeda642", 90, 477, 473, 492, 1175}
-                    )
-                    :set_tag("经营按钮1")
-                    :set_isTap(false)
-                    :set_unFindColor_call(
-                        function (feature)
-                            feature:click(687,101,2000)
-                        end
-                    )
-                    :set_findColor_call(
-                        function (feature,x,y)
-                            --toast("经营按钮1 不点击")
-                        end
-                    )
-                    :set_sub_feature(
-
-                        Feature(
-                            {0xa4531e, "19|3|0xb35a1f,98|-11|0xe39539,63|-15|0xeda642", 90, 477, 473, 492, 1175}
-                            )
-                            :set_tag("经营按钮2")
-                            :set_isAgain(false)
-                            :set_isTap(true)
-                            :set_tapLag(500)
-                            :set_findColor_call(
-                                function (feature,x,y)
-                                    --toast("经营按钮2 点击: " .. feature.____Set_tapLag)
-                                    
-                                    --feature:click(x,y,10)
-                                end
-                            )
-                            :set_unFindColor_call(
-                                function (feature)
-                                    --feature:click(687,101,2000)
-                                end
-                            ),
-                         Feature(
-                            {0xfeeb60, "-2|-55|0xda9c49,-165|-56|0xca8a34,-74|62|0xd6b741,-94|202|0x62554b,-80|-135|0x645a51", 90, 313, 709, 355, 749}
-                            )
-                            :set_tag({i=0})
-                            :set_findColor_call(
-                                function(feature)
-                                    feature.____Set_tag.i = feature.____Set_tag.i+1
-                                    toast("调用次数：" .. feature.____Set_tag.i)
-                                end
-                            )
-                            
-                    )
-                    
-                       
-            )
-        }
-    end,
-    log = function(self,feature, x, y)
-       
-        
-    end
-}, {
-    __call = function(self)
-
-        return setmetatable({}, {
+BaseMeta={
+    __call = function(self,...)
+        return setmetatable({...}, {
             __index = self
         })
 
     end,
     __index = Base
-
-})
-
-
-jp4=极品三国()
-jp4:start()
-jp4:stop()
-
-
-jp5=极品三国()
-jp5:start()
-jp5:stop()
-
-
-jp=极品三国()
-jp:start()
-jp:stop()
-
-jp2=极品三国()
-jp2:start()
-jp2:stop()
-
-jp3=极品三国()
-jp3:start()
+}
 
 
 

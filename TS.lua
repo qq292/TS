@@ -9,7 +9,8 @@ local Factor ={
     y=-1,
     position={},
     factor=function (self,base, feature)
-        self:__isAnd(feature)--找色
+        self:__isAnd(base,feature)--找色
+        
         self:__isTap(feature)--是否点击
         self:__isAgain(feature)--全部找到再执行下一个
 
@@ -20,7 +21,7 @@ local Factor ={
         self:__nuFindColor_call(feature)--未找到颜色回调
 
         
-        base:log(feature, self.x, self.y)
+        
         return self
     end,
     
@@ -57,7 +58,7 @@ local Factor ={
     end,
     
     --找色
-    __isAnd=function (self,feature)
+    __isAnd=function (self,base,feature)
         if feature.____Set_isAnd == Feature.ALL then
             self.position = feature:findColor_all()
             if #self.position ~=0 then
@@ -68,7 +69,7 @@ local Factor ={
         elseif feature.____Set_isAnd == Feature.OR then
             self.x, self.y = feature:findColor_or()
         end
-
+        base:log(feature, self.x, self.y)
     end
 }
 
@@ -158,8 +159,6 @@ ColorBase = {
 
 
 Color = setmetatable({
-    ____Set_tapLag=500,
-    ____Set_tapRandomRange=5,
     __findColor = function(self, t,isAll)
         if #t==0 then
             if isAll then
@@ -179,8 +178,8 @@ Color = setmetatable({
     end,
  
     click = function(self, x, y,t,r,pic)
-        t = t or self.____Set_tapLag
-        r = r or self.____Set_tapRandomRange
+        t = t or self.____Set_tapLag or 500
+        r = r or self.____Set_tapRandomRange or 5
         if pic~=nil then
             self:randomTap()(x, y,r,pic)
         else
@@ -360,6 +359,13 @@ BaseMeta={
     end,
     __index = Base
 }
+
+
+
+----------------------------上面是框架部分--------------------
+----------------------------下面是示例部分--------------------
+
+
 
 
 

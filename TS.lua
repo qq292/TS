@@ -1,4 +1,4 @@
-etting = {
+setting = {
     tapLag = 500--点击后延时
 
 }
